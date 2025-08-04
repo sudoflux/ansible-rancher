@@ -1,6 +1,6 @@
 ---
 - name: Provision Rancher VMs on Proxmox
-  hosts: proxmox
+  hosts: localhost
   gather_facts: no
   become: no  # API calls don't need sudo
   vars:
@@ -35,21 +35,20 @@
   tasks:
     - name: Check if VMs already exist
       community.general.proxmox_vm_info:
-        api_host: "{{ ansible_host }}"
+        api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_password }}"
+        api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
       loop: "{{ vm_specs | dict2items }}"
       register: vm_check
       failed_when: false
-      delegate_to: localhost
 
     - name: Clone template to create VMs
       community.general.proxmox_kvm:
-        api_host: "{{ ansible_host }}"
+        api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_password }}"
+        api_password: "{{ proxmox_api_password }}"
         clone: "{{ vm_template_id }}"
         newid: "{{ item.value.vmid }}"
         name: "{{ item.key }}"
@@ -59,15 +58,13 @@
         timeout: 600
       loop: "{{ vm_specs | dict2items }}"
       when: 
-        - ansible_hostname == item.value.node
         - item.value.vmid not in (vm_check.results | map(attribute='vmid', default=0) | list)
-      delegate_to: localhost
 
     - name: Configure VM resources
       community.general.proxmox_kvm:
-        api_host: "{{ ansible_host }}"
+        api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_password }}"
+        api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
         cores: "{{ item.value.cores }}"
@@ -77,33 +74,27 @@
           net0: "virtio,bridge={{ vm_network_bridge }},tag={{ vm_network_vlan }}"
         update: yes
       loop: "{{ vm_specs | dict2items }}"
-      when: ansible_hostname == item.value.node
-      delegate_to: localhost
 
     - name: Resize VM disks
       community.general.proxmox_disk:
-        api_host: "{{ ansible_host }}"
+        api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_password }}"
+        api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
         disk: scsi0
         size: "{{ item.value.disk_size }}G"
         state: resized
       loop: "{{ vm_specs | dict2items }}"
-      when: ansible_hostname == item.value.node
-      delegate_to: localhost
 
     - name: Start VMs
       community.general.proxmox_kvm:
-        api_host: "{{ ansible_host }}"
+        api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_password }}"
+        api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
         state: started
       loop: "{{ vm_specs | dict2items }}"
-      when: ansible_hostname == item.value.node
-      delegate_to: localhost
 
     - name: Wait for VMs to be reachable
       wait_for:

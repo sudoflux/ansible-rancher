@@ -2,6 +2,12 @@
 # Copy this file to vault.yml and encrypt with ansible-vault
 # ansible-vault encrypt group_vars/vault.yml
 
-vault_proxmox_password: "your-proxmox-root-password"
+# Proxmox API credentials for ansible@pve user
+vault_proxmox_api_password: "your-strong-password-here"
+vault_proxmox_api_host: "192.168.100.51"  # Primary Proxmox node for API
+
+# Rancher admin password
 vault_rancher_password: "your-secure-rancher-password"
+
+# Grafana admin password (if monitoring enabled)
 vault_grafana_password: "your-grafana-admin-password"
