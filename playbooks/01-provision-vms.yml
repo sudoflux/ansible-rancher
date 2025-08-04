@@ -70,7 +70,7 @@
         api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
-        node: "{{ item.value.node }}"
+        node: "pve1"  # VMs are on pve1 initially
         cores: "{{ item.value.cores }}"
         memory: "{{ item.value.memory }}"
         balloon: 0
@@ -88,6 +88,7 @@
         disk: scsi0
         size: "{{ item.value.disk_size }}G"
         state: resized
+        node: "pve1"  # VMs are on pve1 initially
       loop: "{{ vm_specs | dict2items }}"
 
     - name: Start VMs (before migration)
@@ -100,17 +101,8 @@
         state: started
       loop: "{{ vm_specs | dict2items }}"
 
-    - name: Migrate VMs to target nodes
-      community.general.proxmox_kvm:
-        api_host: "{{ proxmox_api_host }}"
-        api_user: "{{ proxmox_api_user }}"
-        api_password: "{{ proxmox_api_password }}"
-        vmid: "{{ item.value.vmid }}"
-        node: "{{ item.value.node }}"
-        state: present
-        migrate: true
-      loop: "{{ vm_specs | dict2items }}"
-      when: item.value.node != "pve1"
+    # Note: All VMs created on pve1 due to template location
+    # Migrate manually later if needed: qm migrate <vmid> <target-node>
 
     - name: Wait for VMs to be reachable
       wait_for:
