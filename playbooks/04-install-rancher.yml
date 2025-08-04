@@ -44,10 +44,12 @@
       loop:
         - { name: 'jetstack', url: 'https://charts.jetstack.io' }
         - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+      become_user: josh
 
     - name: Update Helm repositories
       command: helm repo update
       changed_when: false
+      become_user: josh
 
     - name: Create cert-manager namespace
       kubernetes.core.k8s:
