@@ -88,7 +88,6 @@
         disk: scsi0
         size: "{{ item.value.disk_size }}G"
         state: resized
-        node: "pve1"  # VMs are on pve1 initially
       loop: "{{ vm_specs | dict2items }}"
 
     - name: Start VMs (before migration)
