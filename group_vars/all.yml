@@ -1,5 +1,6 @@
 ---
 # Proxmox Configuration
+proxmox_api_user: "ansible@pve"  # Proxmox API user for ansible
 proxmox_password: "{{ vault_proxmox_password }}"
 vm_template_id: 9000  # Ubuntu 22.04 template
 vm_storage: ceph-vm-storage

@@ -13,10 +13,42 @@ This Ansible playbook automates the deployment of a 3-node HA Kubernetes cluster
 ## Prerequisites
 
 1. **Proxmox Cluster**: 3-node Proxmox cluster with Ceph storage configured
-2. **VM Template**: Ubuntu 22.04 template (ID: 9000) with cloud-init support
-3. **Network**: VLAN 100 configured on Proxmox bridge
-4. **SSH Access**: SSH key authentication to Proxmox nodes
-5. **Ansible**: Version 2.14+ installed locally
+2. **Proxmox User**: Create `ansible` user in Proxmox with appropriate permissions
+3. **VM Template**: Ubuntu 22.04 template (ID: 9000) with cloud-init support
+4. **Network**: VLAN 100 configured on Proxmox bridge
+5. **SSH Access**: SSH key authentication as `ansible` user to Proxmox nodes
+6. **Ansible Control Node**: Ubuntu box with Ansible 2.14+ installed
+
+## Setup for ansible-admin Box
+
+### 1. Configure Proxmox Access
+
+On each Proxmox node, create the ansible user with API access:
+```bash
+# On each Proxmox node (pve1, pve2, pve3)
+pveum user add ansible@pve
+pveum aclmod / -user ansible@pve -role Administrator
+```
+
+### 2. Setup SSH Keys
+
+From your ansible-admin box:
+```bash
+# Generate SSH key if not already done
+ssh-keygen -t ed25519 -f ~/.ssh/ansible_ed25519
+
+# Copy SSH key to Proxmox nodes
+ssh-copy-id -i ~/.ssh/ansible_ed25519.pub ansible@192.168.100.51
+ssh-copy-id -i ~/.ssh/ansible_ed25519.pub ansible@192.168.100.52
+ssh-copy-id -i ~/.ssh/ansible_ed25519.pub ansible@192.168.100.53
+```
+
+### 3. Clone Repository
+
+```bash
+git clone https://github.com/sudoflux/ansible-rancher.git
+cd ansible-rancher
+```
 
 ## Quick Start
 
@@ -30,29 +62,38 @@ ansible-galaxy collection install -r requirements.yml
 
 ```bash
 cp group_vars/vault.yml.example group_vars/vault.yml
-# Edit vault.yml with your passwords
+# Edit vault.yml with your Proxmox API password for ansible@pve user
+nano group_vars/vault.yml
 ansible-vault encrypt group_vars/vault.yml
 ```
 
-### 3. Update Inventory
-
-Edit `inventory/hosts.yml` to match your environment:
-- Update Proxmox node IPs
-- Verify VM IP assignments
-- Adjust resource allocations if needed
-
-### 4. Deploy the Cluster
+### 3. Deploy Using the Script
 
 ```bash
+# Make the deploy script executable
+chmod +x deploy.sh
+
+# Run the deployment script
+./deploy.sh
+```
+
+The script provides an interactive menu for:
+- Testing connectivity
+- Full deployment
+- Individual component deployment
+- Cluster status checks
+
+### 4. Manual Deployment (Alternative)
+
+```bash
+# Test connectivity first
+ansible proxmox -i inventory/hosts.yml -m ping
+
 # Full deployment (provisions VMs and installs everything)
 ansible-playbook -i inventory/hosts.yml site.yml --ask-vault-pass
 
 # Skip VM provisioning (if VMs already exist)
 ansible-playbook -i inventory/hosts.yml site.yml --ask-vault-pass -e provision_vms=false
-
-# Deploy only specific components
-ansible-playbook -i inventory/hosts.yml playbooks/03-deploy-kubernetes.yml --ask-vault-pass
-ansible-playbook -i inventory/hosts.yml playbooks/04-install-rancher.yml --ask-vault-pass
 ```
 
 ## Configuration Options

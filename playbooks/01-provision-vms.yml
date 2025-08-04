@@ -2,11 +2,13 @@
 - name: Provision Rancher VMs on Proxmox
   hosts: proxmox
   gather_facts: no
+  become: no  # API calls don't need sudo
   vars:
     vm_template_id: 9000
     vm_storage: ceph-vm-storage
     vm_network_bridge: vmbr0
     vm_network_vlan: 100
+    proxmox_api_user: "ansible@pve"  # Use ansible user with PVE auth
     vm_specs:
       rancher1:
         vmid: 201
@@ -34,7 +36,7 @@
     - name: Check if VMs already exist
       community.general.proxmox_vm_info:
         api_host: "{{ ansible_host }}"
-        api_user: root@pam
+        api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
@@ -46,7 +48,7 @@
     - name: Clone template to create VMs
       community.general.proxmox_kvm:
         api_host: "{{ ansible_host }}"
-        api_user: root@pam
+        api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_password }}"
         clone: "{{ vm_template_id }}"
         newid: "{{ item.value.vmid }}"
@@ -64,7 +66,7 @@
     - name: Configure VM resources
       community.general.proxmox_kvm:
         api_host: "{{ ansible_host }}"
-        api_user: root@pam
+        api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
@@ -81,7 +83,7 @@
     - name: Resize VM disks
       community.general.proxmox_disk:
         api_host: "{{ ansible_host }}"
-        api_user: root@pam
+        api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_password }}"
         vmid: "{{ item.value.vmid }}"
         disk: scsi0
@@ -94,7 +96,7 @@
     - name: Start VMs
       community.general.proxmox_kvm:
         api_host: "{{ ansible_host }}"
-        api_user: root@pam
+        api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
