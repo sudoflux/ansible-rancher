@@ -56,7 +56,7 @@
         clone: "ubuntu-cloudinit-nfs"
         newid: "{{ item.value.vmid }}"
         name: "{{ item.key }}"
-        node: "{{ item.value.node }}"
+        node: "pve1"  # Create all VMs on pve1 first since template is there
         storage: "{{ vm_storage }}"
         full: yes
         timeout: 600
@@ -90,15 +90,27 @@
         state: resized
       loop: "{{ vm_specs | dict2items }}"
 
-    - name: Start VMs
+    - name: Start VMs (before migration)
+      community.general.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password }}"
+        vmid: "{{ item.value.vmid }}"
+        node: "pve1"
+        state: started
+      loop: "{{ vm_specs | dict2items }}"
+
+    - name: Migrate VMs to target nodes
       community.general.proxmox_kvm:
         api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
         api_password: "{{ proxmox_api_password }}"
         vmid: "{{ item.value.vmid }}"
         node: "{{ item.value.node }}"
-        state: started
+        state: present
+        migrate: true
       loop: "{{ vm_specs | dict2items }}"
+      when: item.value.node != "pve1"
 
     - name: Wait for VMs to be reachable
       wait_for:
