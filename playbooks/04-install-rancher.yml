@@ -7,6 +7,12 @@
     rancher_namespace: cattle-system
     
   tasks:
+    - name: Install Python kubernetes library
+      pip:
+        name: kubernetes
+        state: present
+      become: yes
+
     - name: Install Helm
       block:
         - name: Download Helm installation script
