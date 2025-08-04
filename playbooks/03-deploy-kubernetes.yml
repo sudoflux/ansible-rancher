@@ -20,38 +20,38 @@
 
     - name: Create .kube directory for ubuntu user
       file:
-        path: /home/ubuntu/.kube
+        path: /home/josh/.kube
         state: directory
-        owner: ubuntu
-        group: ubuntu
+        owner: josh
+        group: josh
         mode: '0755'
 
     - name: Copy admin.conf to user's kube config
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: /home/ubuntu/.kube/config
+        dest: /home/josh/.kube/config
         remote_src: yes
-        owner: ubuntu
-        group: ubuntu
+        owner: josh
+        group: josh
         mode: '0600'
 
     - name: Install Calico network plugin
-      become_user: ubuntu
+      become_user: josh
       shell: |
         kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/tigera-operator.yaml
         kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/custom-resources.yaml
       args:
-        creates: /home/ubuntu/.kube/calico-installed
+        creates: /home/josh/.kube/calico-installed
       register: calico_install
 
     - name: Mark Calico as installed
       file:
-        path: /home/ubuntu/.kube/calico-installed
+        path: /home/josh/.kube/calico-installed
         state: touch
       when: calico_install.changed
 
     - name: Wait for Calico to be ready
-      become_user: ubuntu
+      become_user: josh
       shell: kubectl wait --for=condition=Ready nodes --all --timeout=300s
       retries: 3
       delay: 10
@@ -87,19 +87,19 @@
   tasks:
     - name: Create .kube directory
       file:
-        path: /home/ubuntu/.kube
+        path: /home/josh/.kube
         state: directory
-        owner: ubuntu
-        group: ubuntu
+        owner: josh
+        group: josh
         mode: '0755'
 
     - name: Copy admin.conf from master
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: /home/ubuntu/.kube/config
+        dest: /home/josh/.kube/config
         remote_src: yes
-        owner: ubuntu
-        group: ubuntu
+        owner: josh
+        group: josh
         mode: '0600'
       delegate_to: "{{ groups['k8s_masters'][0] }}"
       when: inventory_hostname in groups['k8s_workers']
@@ -107,7 +107,7 @@
 - name: Verify cluster status
   hosts: k8s_masters
   become: yes
-  become_user: ubuntu
+  become_user: josh
   tasks:
     - name: Get cluster nodes
       command: kubectl get nodes

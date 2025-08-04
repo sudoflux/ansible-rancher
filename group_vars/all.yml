@@ -3,7 +3,7 @@
 proxmox_api_user: "ansible@pve"  # Proxmox API user for ansible
 proxmox_api_password: "{{ vault_proxmox_api_password }}"
 proxmox_api_host: "192.168.100.51"  # Primary Proxmox node for API calls
-vm_template_id: 9000  # Ubuntu 22.04 template
+vm_template_id: 9000  # Ubuntu 22.04 template - UPDATE THIS to match your template ID
 vm_storage: ceph-vm-storage
 vm_network_bridge: vmbr0
 vm_network_vlan: 100

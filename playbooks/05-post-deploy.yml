@@ -2,7 +2,7 @@
 - name: Post-deployment configuration and validation
   hosts: k8s_masters
   become: yes
-  become_user: ubuntu
+  become_user: josh
   tasks:
     - name: Install monitoring stack (optional)
       block:
@@ -171,7 +171,7 @@
     - name: Save cluster summary to file
       copy:
         content: "{{ cluster_summary }}"
-        dest: /home/ubuntu/cluster-deployment-summary.txt
-        owner: ubuntu
-        group: ubuntu
+        dest: /home/josh/cluster-deployment-summary.txt
+        owner: josh
+        group: josh
         mode: '0644'
