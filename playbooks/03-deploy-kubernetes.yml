@@ -38,8 +38,7 @@
     - name: Install Calico network plugin
       become_user: josh
       shell: |
-        kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/tigera-operator.yaml
-        kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/custom-resources.yaml
+        kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/calico.yaml
       args:
         creates: /home/josh/.kube/calico-installed
       register: calico_install
@@ -50,11 +49,28 @@
         state: touch
       when: calico_install.changed
 
-    - name: Wait for Calico to be ready
+    - name: Wait for Calico pods to be ready
       become_user: josh
-      shell: kubectl wait --for=condition=Ready nodes --all --timeout=300s
-      retries: 3
-      delay: 10
+      shell: kubectl wait --for=condition=Ready pods -l k8s-app=calico-node -n kube-system --timeout=300s
+      retries: 2
+      delay: 30
+      register: calico_pods
+      failed_when: false
+
+    - name: Check Calico node status
+      become_user: josh
+      shell: kubectl get pods -n kube-system | grep calico
+      register: calico_status
+
+    - name: Display Calico status
+      debug:
+        msg: "{{ calico_status.stdout_lines }}"
+
+    - name: Wait for nodes to be ready (with longer timeout)
+      become_user: josh
+      shell: kubectl wait --for=condition=Ready nodes --all --timeout=600s
+      retries: 1
+      delay: 0
 
     - name: Generate join command
       command: kubeadm token create --print-join-command
