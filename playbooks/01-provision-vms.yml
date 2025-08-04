@@ -3,6 +3,8 @@
   hosts: localhost
   gather_facts: no
   become: no  # API calls don't need sudo
+  vars_files:
+    - ../group_vars/vault.yml
   vars:
     vm_template_id: 9000
     vm_storage: ceph-vm-storage
