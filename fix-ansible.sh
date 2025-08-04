@@ -34,5 +34,8 @@ ansible-galaxy collection install community.general:>=6.0.0,<8.0.0
 ansible-galaxy collection install kubernetes.core
 ansible-galaxy collection install ansible.posix
 
-echo "Ansible and collections updated successfully!"
+# Install required Python libraries for Proxmox
+pip3 install --user proxmoxer requests
+
+echo "Ansible, collections, and Python libraries updated successfully!"
 echo "Please run 'source ~/.bashrc' or start a new shell session."
