@@ -55,11 +55,17 @@
         api_version: v1
         kind: Namespace
         state: present
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Install cert-manager CRDs
       kubernetes.core.k8s:
         state: present
         src: "https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml"
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Install cert-manager
       kubernetes.core.helm:
@@ -73,6 +79,9 @@
             enabled: false
         wait: true
         wait_timeout: 10m
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Wait for cert-manager to be ready
       kubernetes.core.k8s_info:
@@ -89,6 +98,9 @@
         - cert-manager
         - cert-manager-webhook
         - cert-manager-cainjector
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Create Rancher namespace
       kubernetes.core.k8s:
@@ -96,6 +108,9 @@
         api_version: v1
         kind: Namespace
         state: present
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Install Rancher
       kubernetes.core.helm:
@@ -113,6 +128,9 @@
           antiAffinity: preferred
         wait: true
         wait_timeout: 10m
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Wait for Rancher deployment
       kubernetes.core.k8s_info:
@@ -125,6 +143,9 @@
           type: Progressing
           status: "True"
         wait_timeout: 600
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Get Rancher pods status
       kubernetes.core.k8s_info:
@@ -134,6 +155,9 @@
         label_selectors:
           - app=rancher
       register: rancher_pods
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Display Rancher pods status
       debug:
@@ -166,6 +190,9 @@
                 targetPort: 80
                 protocol: TCP
       when: create_loadbalancer | default(false) | bool
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Get Rancher ingress information
       kubernetes.core.k8s_info:
@@ -174,6 +201,9 @@
         name: rancher
         namespace: "{{ rancher_namespace }}"
       register: rancher_ingress
+      become_user: josh
+      environment:
+        KUBECONFIG: /home/josh/.kube/config
 
     - name: Display Rancher access information
       debug:
