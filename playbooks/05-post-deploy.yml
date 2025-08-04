@@ -2,7 +2,7 @@
 - name: Post-deployment configuration and validation
   hosts: k8s_masters
   become: yes
-  become_user: josh
+  become_user: ansible
   tasks:
     - name: Install monitoring stack (optional)
       block:
@@ -155,7 +155,7 @@
           
           Access Information:
           - Rancher URL: https://{{ rancher_hostname }}
-          - Kubectl configured for user: ubuntu
+          - Kubectl configured for user: ansible
           
           Next Steps:
           1. Add {{ ansible_host }} {{ rancher_hostname }} to your /etc/hosts
@@ -171,7 +171,7 @@
     - name: Save cluster summary to file
       copy:
         content: "{{ cluster_summary }}"
-        dest: /home/josh/cluster-deployment-summary.txt
-        owner: josh
-        group: josh
+        dest: /home/ansible/cluster-deployment-summary.txt
+        owner: ansible
+        group: ansible
         mode: '0644'

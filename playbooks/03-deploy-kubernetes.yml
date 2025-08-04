@@ -20,37 +20,37 @@
 
     - name: Create .kube directory for ubuntu user
       file:
-        path: /home/josh/.kube
+        path: /home/ansible/.kube
         state: directory
-        owner: josh
-        group: josh
+        owner: ansible
+        group: ansible
         mode: '0755'
 
     - name: Copy admin.conf to user's kube config
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: /home/josh/.kube/config
+        dest: /home/ansible/.kube/config
         remote_src: yes
-        owner: josh
-        group: josh
+        owner: ansible
+        group: ansible
         mode: '0600'
 
     - name: Install Calico network plugin
-      become_user: josh
+      become_user: ansible
       shell: |
         kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/manifests/calico.yaml
       args:
-        creates: /home/josh/.kube/calico-installed
+        creates: /home/ansible/.kube/calico-installed
       register: calico_install
 
     - name: Mark Calico as installed
       file:
-        path: /home/josh/.kube/calico-installed
+        path: /home/ansible/.kube/calico-installed
         state: touch
       when: calico_install.changed
 
     - name: Wait for Calico pods to be ready
-      become_user: josh
+      become_user: ansible
       shell: kubectl wait --for=condition=Ready pods -l k8s-app=calico-node -n kube-system --timeout=300s
       retries: 2
       delay: 30
@@ -58,7 +58,7 @@
       failed_when: false
 
     - name: Check Calico node status
-      become_user: josh
+      become_user: ansible
       shell: kubectl get pods -n kube-system | grep calico
       register: calico_status
 
@@ -67,7 +67,7 @@
         msg: "{{ calico_status.stdout_lines }}"
 
     - name: Wait for nodes to be ready (with longer timeout)
-      become_user: josh
+      become_user: ansible
       shell: kubectl wait --for=condition=Ready nodes --all --timeout=600s
       retries: 1
       delay: 0
@@ -103,19 +103,19 @@
   tasks:
     - name: Create .kube directory
       file:
-        path: /home/josh/.kube
+        path: /home/ansible/.kube
         state: directory
-        owner: josh
-        group: josh
+        owner: ansible
+        group: ansible
         mode: '0755'
 
     - name: Copy admin.conf from master
       copy:
         src: /etc/kubernetes/admin.conf
-        dest: /home/josh/.kube/config
+        dest: /home/ansible/.kube/config
         remote_src: yes
-        owner: josh
-        group: josh
+        owner: ansible
+        group: ansible
         mode: '0600'
       delegate_to: "{{ groups['k8s_masters'][0] }}"
       when: inventory_hostname in groups['k8s_workers']
@@ -123,7 +123,7 @@
 - name: Verify cluster status
   hosts: k8s_masters
   become: yes
-  become_user: josh
+  become_user: ansible
   tasks:
     - name: Get cluster nodes
       command: kubectl get nodes
