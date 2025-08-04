@@ -1,0 +1,181 @@
+---
+- name: Install Rancher on Kubernetes
+  hosts: k8s_masters
+  become: yes
+  become_user: ubuntu
+  vars:
+    cert_manager_version: v1.13.3
+    rancher_namespace: cattle-system
+    
+  tasks:
+    - name: Install Helm
+      block:
+        - name: Download Helm installation script
+          get_url:
+            url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+            dest: /tmp/get_helm.sh
+            mode: '0700'
+          become: yes
+          become_user: root
+
+        - name: Install Helm
+          command: /tmp/get_helm.sh
+          become: yes
+          become_user: root
+          args:
+            creates: /usr/local/bin/helm
+
+    - name: Add Helm repositories
+      kubernetes.core.helm_repository:
+        name: "{{ item.name }}"
+        repo_url: "{{ item.url }}"
+      loop:
+        - { name: 'jetstack', url: 'https://charts.jetstack.io' }
+        - { name: 'rancher-stable', url: 'https://releases.rancher.com/server-charts/stable' }
+
+    - name: Update Helm repositories
+      command: helm repo update
+      changed_when: false
+
+    - name: Create cert-manager namespace
+      kubernetes.core.k8s:
+        name: cert-manager
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Install cert-manager CRDs
+      kubernetes.core.k8s:
+        state: present
+        src: "https://github.com/cert-manager/cert-manager/releases/download/{{ cert_manager_version }}/cert-manager.crds.yaml"
+
+    - name: Install cert-manager
+      kubernetes.core.helm:
+        name: cert-manager
+        chart_ref: jetstack/cert-manager
+        release_namespace: cert-manager
+        create_namespace: true
+        values:
+          installCRDs: false
+          prometheus:
+            enabled: false
+        wait: true
+        wait_timeout: 10m
+
+    - name: Wait for cert-manager to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ item }}"
+        namespace: cert-manager
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+        wait_timeout: 300
+      loop:
+        - cert-manager
+        - cert-manager-webhook
+        - cert-manager-cainjector
+
+    - name: Create Rancher namespace
+      kubernetes.core.k8s:
+        name: "{{ rancher_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Install Rancher
+      kubernetes.core.helm:
+        name: rancher
+        chart_ref: rancher-stable/rancher
+        release_namespace: "{{ rancher_namespace }}"
+        create_namespace: true
+        values:
+          hostname: "{{ rancher_hostname }}"
+          replicas: 3
+          ingress:
+            tls:
+              source: rancher
+          bootstrapPassword: "{{ rancher_bootstrap_password | default('admin') }}"
+          antiAffinity: preferred
+        wait: true
+        wait_timeout: 10m
+
+    - name: Wait for Rancher deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: rancher
+        namespace: "{{ rancher_namespace }}"
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+        wait_timeout: 600
+
+    - name: Get Rancher pods status
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ rancher_namespace }}"
+        label_selectors:
+          - app=rancher
+      register: rancher_pods
+
+    - name: Display Rancher pods status
+      debug:
+        msg: |
+          Rancher pods status:
+          {% for pod in rancher_pods.resources %}
+          - {{ pod.metadata.name }}: {{ pod.status.phase }}
+          {% endfor %}
+
+    - name: Create LoadBalancer service for Rancher (optional)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: rancher-lb
+            namespace: "{{ rancher_namespace }}"
+          spec:
+            type: LoadBalancer
+            selector:
+              app: rancher
+            ports:
+              - name: https
+                port: 443
+                targetPort: 443
+                protocol: TCP
+              - name: http
+                port: 80
+                targetPort: 80
+                protocol: TCP
+      when: create_loadbalancer | default(false) | bool
+
+    - name: Get Rancher ingress information
+      kubernetes.core.k8s_info:
+        api_version: networking.k8s.io/v1
+        kind: Ingress
+        name: rancher
+        namespace: "{{ rancher_namespace }}"
+      register: rancher_ingress
+
+    - name: Display Rancher access information
+      debug:
+        msg: |
+          ====================================
+          Rancher Installation Complete!
+          ====================================
+          Access Rancher at: https://{{ rancher_hostname }}
+          
+          To access via NodePort:
+          https://{{ ansible_host }}:$(kubectl get svc rancher -n {{ rancher_namespace }} -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}')
+          
+          Initial Bootstrap Password: {{ rancher_bootstrap_password | default('admin') }}
+          
+          Note: Add the following to your local hosts file:
+          {{ ansible_host }} {{ rancher_hostname }}
+          ====================================

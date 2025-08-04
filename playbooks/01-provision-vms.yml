@@ -1,0 +1,113 @@
+---
+- name: Provision Rancher VMs on Proxmox
+  hosts: proxmox
+  gather_facts: no
+  vars:
+    vm_template_id: 9000
+    vm_storage: ceph-vm-storage
+    vm_network_bridge: vmbr0
+    vm_network_vlan: 100
+    vm_specs:
+      rancher1:
+        vmid: 201
+        cores: 4
+        memory: 8192
+        disk_size: 100
+        node: pve1
+        ip: 192.168.100.60
+      rancher2:
+        vmid: 202
+        cores: 4
+        memory: 8192
+        disk_size: 100
+        node: pve2
+        ip: 192.168.100.61
+      rancher3:
+        vmid: 203
+        cores: 4
+        memory: 8192
+        disk_size: 100
+        node: pve3
+        ip: 192.168.100.62
+
+  tasks:
+    - name: Check if VMs already exist
+      community.general.proxmox_vm_info:
+        api_host: "{{ ansible_host }}"
+        api_user: root@pam
+        api_password: "{{ proxmox_password }}"
+        vmid: "{{ item.value.vmid }}"
+        node: "{{ item.value.node }}"
+      loop: "{{ vm_specs | dict2items }}"
+      register: vm_check
+      failed_when: false
+      delegate_to: localhost
+
+    - name: Clone template to create VMs
+      community.general.proxmox_kvm:
+        api_host: "{{ ansible_host }}"
+        api_user: root@pam
+        api_password: "{{ proxmox_password }}"
+        clone: "{{ vm_template_id }}"
+        newid: "{{ item.value.vmid }}"
+        name: "{{ item.key }}"
+        node: "{{ item.value.node }}"
+        storage: "{{ vm_storage }}"
+        full: yes
+        timeout: 600
+      loop: "{{ vm_specs | dict2items }}"
+      when: 
+        - ansible_hostname == item.value.node
+        - item.value.vmid not in (vm_check.results | map(attribute='vmid', default=0) | list)
+      delegate_to: localhost
+
+    - name: Configure VM resources
+      community.general.proxmox_kvm:
+        api_host: "{{ ansible_host }}"
+        api_user: root@pam
+        api_password: "{{ proxmox_password }}"
+        vmid: "{{ item.value.vmid }}"
+        node: "{{ item.value.node }}"
+        cores: "{{ item.value.cores }}"
+        memory: "{{ item.value.memory }}"
+        balloon: 0
+        net:
+          net0: "virtio,bridge={{ vm_network_bridge }},tag={{ vm_network_vlan }}"
+        update: yes
+      loop: "{{ vm_specs | dict2items }}"
+      when: ansible_hostname == item.value.node
+      delegate_to: localhost
+
+    - name: Resize VM disks
+      community.general.proxmox_disk:
+        api_host: "{{ ansible_host }}"
+        api_user: root@pam
+        api_password: "{{ proxmox_password }}"
+        vmid: "{{ item.value.vmid }}"
+        disk: scsi0
+        size: "{{ item.value.disk_size }}G"
+        state: resized
+      loop: "{{ vm_specs | dict2items }}"
+      when: ansible_hostname == item.value.node
+      delegate_to: localhost
+
+    - name: Start VMs
+      community.general.proxmox_kvm:
+        api_host: "{{ ansible_host }}"
+        api_user: root@pam
+        api_password: "{{ proxmox_password }}"
+        vmid: "{{ item.value.vmid }}"
+        node: "{{ item.value.node }}"
+        state: started
+      loop: "{{ vm_specs | dict2items }}"
+      when: ansible_hostname == item.value.node
+      delegate_to: localhost
+
+    - name: Wait for VMs to be reachable
+      wait_for:
+        host: "{{ item.value.ip }}"
+        port: 22
+        delay: 30
+        timeout: 300
+      loop: "{{ vm_specs | dict2items }}"
+      delegate_to: localhost

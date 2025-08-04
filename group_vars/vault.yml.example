@@ -1,0 +1,7 @@
+---
+# Copy this file to vault.yml and encrypt with ansible-vault
+# ansible-vault encrypt group_vars/vault.yml
+
+vault_proxmox_password: "your-proxmox-root-password"
+vault_rancher_password: "your-secure-rancher-password"
+vault_grafana_password: "your-grafana-admin-password"

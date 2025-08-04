@@ -1,0 +1,177 @@
+---
+- name: Post-deployment configuration and validation
+  hosts: k8s_masters
+  become: yes
+  become_user: ubuntu
+  tasks:
+    - name: Install monitoring stack (optional)
+      block:
+        - name: Add Prometheus Helm repository
+          kubernetes.core.helm_repository:
+            name: prometheus-community
+            repo_url: https://prometheus-community.github.io/helm-charts
+
+        - name: Update Helm repositories
+          command: helm repo update
+          changed_when: false
+
+        - name: Create monitoring namespace
+          kubernetes.core.k8s:
+            name: monitoring
+            api_version: v1
+            kind: Namespace
+            state: present
+
+        - name: Install kube-prometheus-stack
+          kubernetes.core.helm:
+            name: kube-prometheus-stack
+            chart_ref: prometheus-community/kube-prometheus-stack
+            release_namespace: monitoring
+            create_namespace: true
+            values:
+              grafana:
+                adminPassword: "{{ grafana_admin_password | default('admin') }}"
+              prometheus:
+                prometheusSpec:
+                  retention: 30d
+                  storageSpec:
+                    volumeClaimTemplate:
+                      spec:
+                        accessModes: ["ReadWriteOnce"]
+                        resources:
+                          requests:
+                            storage: 50Gi
+            wait: true
+            wait_timeout: 10m
+      when: install_monitoring | default(false) | bool
+
+    - name: Configure storage classes
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: ceph-rbd
+            annotations:
+              storageclass.kubernetes.io/is-default-class: "true"
+          provisioner: rbd.csi.ceph.com
+          parameters:
+            clusterID: "{{ ceph_cluster_id | default('') }}"
+            pool: "{{ ceph_pool | default('kubernetes') }}"
+            imageFeatures: layering
+            csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
+            csi.storage.k8s.io/provisioner-secret-namespace: default
+            csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
+            csi.storage.k8s.io/controller-expand-secret-namespace: default
+            csi.storage.k8s.io/node-stage-secret-name: csi-rbd-secret
+            csi.storage.k8s.io/node-stage-secret-namespace: default
+      when: configure_ceph_storage | default(false) | bool
+
+    - name: Create backup schedule for etcd
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: batch/v1
+          kind: CronJob
+          metadata:
+            name: etcd-backup
+            namespace: kube-system
+          spec:
+            schedule: "0 2 * * *"
+            jobTemplate:
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: etcd-backup
+                      image: k8s.gcr.io/etcd:3.5.9
+                      command:
+                      - /bin/sh
+                      - -c
+                      - |
+                        etcdctl --endpoints=https://127.0.0.1:2379 \
+                          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+                          --cert=/etc/kubernetes/pki/etcd/server.crt \
+                          --key=/etc/kubernetes/pki/etcd/server.key \
+                          snapshot save /backup/etcd-snapshot-$(date +%Y%m%d-%H%M%S).db
+                      volumeMounts:
+                      - name: etcd-certs
+                        mountPath: /etc/kubernetes/pki/etcd
+                        readOnly: true
+                      - name: backup
+                        mountPath: /backup
+                    volumes:
+                    - name: etcd-certs
+                      hostPath:
+                        path: /etc/kubernetes/pki/etcd
+                    - name: backup
+                      hostPath:
+                        path: /var/backups/etcd
+                    restartPolicy: OnFailure
+                    nodeSelector:
+                      node-role.kubernetes.io/control-plane: ""
+                    tolerations:
+                    - effect: NoSchedule
+                      key: node-role.kubernetes.io/control-plane
+      when: configure_etcd_backup | default(true) | bool
+
+    - name: Gather cluster information
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Node
+      register: cluster_nodes
+
+    - name: Get cluster services
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        namespace: cattle-system
+      register: rancher_services
+
+    - name: Generate cluster summary
+      set_fact:
+        cluster_summary: |
+          ========================================
+          Kubernetes Cluster Deployment Summary
+          ========================================
+          
+          Cluster Nodes:
+          {% for node in cluster_nodes.resources %}
+          - {{ node.metadata.name }}:
+            Status: {{ node.status.conditions | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | first }}
+            Version: {{ node.status.nodeInfo.kubeletVersion }}
+            OS: {{ node.status.nodeInfo.osImage }}
+            Container Runtime: {{ node.status.nodeInfo.containerRuntimeVersion }}
+          {% endfor %}
+          
+          Rancher Services:
+          {% for svc in rancher_services.resources %}
+          - {{ svc.metadata.name }}: {{ svc.spec.type }}
+            {% if svc.spec.type == 'NodePort' %}
+            Ports: {% for port in svc.spec.ports %}{{ port.port }}:{{ port.nodePort }} {% endfor %}
+            {% endif %}
+          {% endfor %}
+          
+          Access Information:
+          - Rancher URL: https://{{ rancher_hostname }}
+          - Kubectl configured for user: ubuntu
+          
+          Next Steps:
+          1. Add {{ ansible_host }} {{ rancher_hostname }} to your /etc/hosts
+          2. Access Rancher and complete initial setup
+          3. Import Harvester cluster as downstream cluster
+          4. Configure backup schedules and monitoring
+          ========================================
+
+    - name: Display cluster summary
+      debug:
+        msg: "{{ cluster_summary }}"
+
+    - name: Save cluster summary to file
+      copy:
+        content: "{{ cluster_summary }}"
+        dest: /home/ubuntu/cluster-deployment-summary.txt
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'

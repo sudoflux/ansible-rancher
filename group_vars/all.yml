@@ -1,0 +1,31 @@
+---
+# Proxmox Configuration
+proxmox_password: "{{ vault_proxmox_password }}"
+vm_template_id: 9000  # Ubuntu 22.04 template
+vm_storage: ceph-vm-storage
+vm_network_bridge: vmbr0
+vm_network_vlan: 100
+
+# Kubernetes Configuration
+k8s_version: "1.28.5"
+k8s_pod_network_cidr: "10.244.0.0/16"
+k8s_service_cidr: "10.96.0.0/12"
+
+# Rancher Configuration
+rancher_hostname: rancher.homelab.local
+rancher_version: "2.8.1"
+rancher_bootstrap_password: "{{ vault_rancher_password | default('ChangeMeNow123!') }}"
+cert_manager_version: "v1.13.3"
+
+# Optional Features
+install_monitoring: false
+configure_ceph_storage: false
+configure_etcd_backup: true
+create_loadbalancer: false
+
+# Monitoring Configuration (if enabled)
+grafana_admin_password: "{{ vault_grafana_password | default('admin') }}"
+
+# Ceph Configuration (if enabled)
+ceph_cluster_id: ""
+ceph_pool: "kubernetes"

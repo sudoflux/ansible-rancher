@@ -1,0 +1,28 @@
+---
+- name: Deploy Rancher HA Kubernetes Cluster on Proxmox
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display deployment plan
+      debug:
+        msg: |
+          Deploying Rancher HA Cluster:
+          - 3 VMs on Proxmox cluster 'moxie'
+          - Kubernetes {{ k8s_version | default('1.28.5') }}
+          - Rancher {{ rancher_version | default('2.8.1') }}
+
+- name: Provision VMs on Proxmox
+  import_playbook: playbooks/01-provision-vms.yml
+  when: provision_vms | default(true) | bool
+
+- name: Prepare nodes for Kubernetes
+  import_playbook: playbooks/02-prepare-nodes.yml
+
+- name: Deploy Kubernetes cluster
+  import_playbook: playbooks/03-deploy-kubernetes.yml
+
+- name: Install Rancher
+  import_playbook: playbooks/04-install-rancher.yml
+
+- name: Post-deployment configuration
+  import_playbook: playbooks/05-post-deploy.yml
