@@ -1,0 +1,43 @@
+---
+- name: Fix containerd configuration
+  hosts: rancher_cluster
+  become: yes
+  tasks:
+    - name: Stop containerd
+      systemd:
+        name: containerd
+        state: stopped
+
+    - name: Remove existing containerd config
+      file:
+        path: /etc/containerd/config.toml
+        state: absent
+
+    - name: Generate new containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+
+    - name: Configure containerd for systemd cgroup
+      replace:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        replace: 'SystemdCgroup = true'
+
+    - name: Start and enable containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for containerd socket
+      wait_for:
+        path: /var/run/containerd/containerd.sock
+        timeout: 30
+
+    - name: Test containerd
+      shell: ctr version
+      register: ctr_version
+
+    - name: Display containerd version
+      debug:
+        msg: "{{ ctr_version.stdout }}"

@@ -91,12 +91,28 @@
             regexp: 'SystemdCgroup = false'
             replace: 'SystemdCgroup = true'
 
+        - name: Enable containerd service
+          systemd:
+            name: containerd
+            enabled: yes
+            daemon_reload: yes
+
         - name: Restart containerd
           systemd:
             name: containerd
             state: restarted
-            enabled: yes
-            daemon_reload: yes
+
+        - name: Wait for containerd to be ready
+          wait_for:
+            port: 0
+            timeout: 30
+            delay: 5
+          delegate_to: localhost
+
+        - name: Verify containerd is running
+          command: systemctl is-active containerd
+          register: containerd_status
+          failed_when: containerd_status.stdout != "active"
 
     - name: Install Kubernetes components
       block:
