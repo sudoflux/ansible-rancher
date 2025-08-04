@@ -100,10 +100,17 @@
 
     - name: Install Kubernetes components
       block:
-        - name: Add Kubernetes GPG key
-          apt_key:
-            url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
-            state: present
+        - name: Create apt keyrings directory
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
+        - name: Add Kubernetes GPG key (new method)
+          shell: |
+            curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+          args:
+            creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
         - name: Add Kubernetes repository
           apt_repository:
