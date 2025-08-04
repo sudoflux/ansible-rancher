@@ -64,7 +64,7 @@
       when: 
         - item.value.vmid not in (vm_check.results | map(attribute='vmid', default=0) | list)
 
-    - name: Configure VM resources
+    - name: Configure VM resources and cloud-init
       community.general.proxmox_kvm:
         api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
@@ -76,6 +76,11 @@
         balloon: 0
         net:
           net0: "virtio,bridge={{ vm_network_bridge }},tag={{ vm_network_vlan }}"
+        ciuser: ubuntu
+        cipassword: ubuntu
+        ipconfig:
+          ipconfig0: "ip={{ item.value.ip }}/24,gw=192.168.100.1"
+        nameserver: "192.168.100.1"
         update: yes
       loop: "{{ vm_specs | dict2items }}"
 
